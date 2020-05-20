@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-alasql",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "description": "Node-RED wrapper for AlaSQL database and XLSX import/export",
   "author": "Mathias Rangel Wulff <m@rawu.dk>, Andrey Gershun <agershun@gmail.com>",
   "contributors": [
