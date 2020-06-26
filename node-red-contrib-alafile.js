@@ -6,94 +6,121 @@
  \Program Files\Mysoft => \\Program Files\\Mysoft
  */
 function doubleb(path) {
-    return path.replace(/\\/g, '\\\\');
+	return path.replace(/\\/g, '\\\\');
 }
 
+module.exports = function(RED) {
+	var alasql = require('alasql');
 
-module.exports = function (RED) {
-    var alasql = require('alasql');
+	function AlaFileNodeOut(config) {
+		RED.nodes.createNode(this, config);
+		var node = this;
+		node.filename = config.filename;
+		node.format = config.format;
+		node.columns = config.columns;
+		node.headers = config.headers;
+		node.on('input', (msg) => {
+			var filename = node.filename || msg.filename || '';
+			if (filename !== '') {
+				node.status({fill: 'green', shape: 'dot', text: ' ' + filename + '.' + this.format});
+			}
+			if (filename === '') {
+				node.warn(RED._('file.errors.nofilename'));
+				node.status({
+					fill: 'red',
+					shape: 'ring',
+					text: 'No filename in node config or msg.filename!',
+				});
+			} else if (msg.hasOwnProperty('payload') && typeof msg.payload !== 'undefined') {
+				var sql =
+					'SELECT ' +
+					this.columns +
+					' INTO ' +
+					this.format +
+					'("' +
+					doubleb(filename) +
+					'",{headers:' +
+					this.headers +
+					'}) FROM ?';
+				var bind = Array.isArray(msg.payload) ? [msg.payload] : [[msg.payload]];
+				alasql
+					.promise(sql, bind)
+					.then((res) => {
+						msg.payload = res;
+						node.send(msg);
+					})
+					.catch((err) => {
+						node.error(err, msg);
+					});
+			} else {
+				node.status({
+					fill: 'red',
+					shape: 'ring',
+					text: 'No msg.payload defined with data to output!',
+				});
+			}
+		});
+		this.on('close', () => {
+			node.status({});
+		});
+	}
 
-    function AlaFileNodeOut(config) {
-        RED.nodes.createNode(this, config);
-        var node = this;
-        node.filename = config.filename;
-        node.format = config.format;
-        node.columns = config.columns;
-        node.headers = config.headers;
-        node.on("input", (msg) => {
-            var filename = node.filename || msg.filename || "";
-            if (filename !== "") {
-                node.status({fill: "green", shape: "dot", text: ' ' + filename + '.' + this.format});
-            }
-            if (filename === "") {
-                node.warn(RED._("file.errors.nofilename"));
-                node.status({fill: "red", shape: "ring", text: "No filename in node config or msg.filename!"});
-            }
-            else if (msg.hasOwnProperty("payload") && (typeof msg.payload !== "undefined")) {
-                var sql = 'SELECT ' + this.columns
-                    + ' INTO ' + this.format + '("' + doubleb(filename)
-                    + '",{headers:' + this.headers + '}) FROM ?';
-                var bind = Array.isArray(msg.payload) ? [msg.payload] : [[msg.payload]];
-                alasql.promise(sql, bind)
-                    .then((res) => {
-                        msg.payload = res;
-                        node.send(msg);
-                    }).catch((err) => {
-                    node.error(err, msg);
-                });
-            }
-            else {
-                node.status({fill: "red", shape: "ring", text: "No msg.payload defined with data to output!"});
-            }
-        });
-        this.on('close', () => {
-            node.status({});
-        });
-    }
+	RED.nodes.registerType('alafile out', AlaFileNodeOut);
 
-    RED.nodes.registerType("alafile out", AlaFileNodeOut);
+	function AlaFileNode(config) {
+		RED.nodes.createNode(this, config);
+		var node = this;
+		node.filename = config.filename;
+		node.format = config.format;
+		node.columns = config.columns;
+		node.headers = config.headers;
+		node.on('input', (msg) => {
+			var filename = node.filename || msg.filename || '';
+			if (filename !== '') {
+				node.status({fill: 'green', shape: 'dot', text: ' ' + filename + '.' + this.format});
+			}
+			if (filename === '') {
+				node.warn(RED._('file.errors.nofilename'));
+				node.status({
+					fill: 'red',
+					shape: 'ring',
+					text: 'No filename in node config or msg.filename!',
+				});
+			} else if (msg.hasOwnProperty('payload') && typeof msg.payload !== 'undefined') {
+				var sql =
+					'SELECT ' +
+					this.columns +
+					' FROM ' +
+					this.format +
+					'("' +
+					doubleb(filename) +
+					'.' +
+					this.format +
+					'",{headers:' +
+					this.headers +
+					'})';
+				var bind = Array.isArray(msg.payload) ? [msg.payload] : [[msg.payload]];
+				if (!require('fs').existsSync(doubleb(filename) + '.' + this.format)) {
+					var notExist = ' ' + doubleb(filename) + '.' + this.format + ' does not exist!';
+					node.warn(RED._(notExist));
+					node.status({fill: 'red', shape: 'ring', text: notExist});
+				} else {
+					alasql
+						.promise(sql, bind)
+						.then((res) => {
+							msg.payload = res;
+							node.send(msg);
+						})
+						.catch((err) => {
+							node.error(err, msg);
+						});
+				}
+			}
+		});
+		this.on('close', () => {
+			node.status({});
+		});
+	}
 
-    function AlaFileNode(config) {
-        RED.nodes.createNode(this, config);
-        var node = this;
-        node.filename = config.filename;
-        node.format = config.format;
-        node.columns = config.columns;
-        node.headers = config.headers;
-        node.on("input", (msg) => {
-            var filename = node.filename || msg.filename || "";
-            if (filename !== "") {
-                node.status({fill: "green", shape: "dot", text: ' ' + filename + '.' + this.format});
-            }
-            if (filename === "") {
-                node.warn(RED._("file.errors.nofilename"));
-                node.status({fill: "red", shape: "ring", text: "No filename in node config or msg.filename!"});
-            }
-            else if (msg.hasOwnProperty("payload") && (typeof msg.payload !== "undefined")) {
-                var sql = 'SELECT ' + this.columns
-                    + ' FROM ' + this.format + '("' + doubleb(filename) + '.' + this.format
-                    + '",{headers:' + this.headers + '})';
-                var bind = Array.isArray(msg.payload) ? [msg.payload] : [[msg.payload]];
-                if (!require('fs').existsSync(doubleb(filename) + '.' + this.format)) {
-                    var notExist = ' ' + doubleb(filename) + '.' + this.format + " does not exist!";
-                    node.warn(RED._(notExist));
-                    node.status({fill: "red", shape: "ring", text: notExist});
-                }
-                else {
-                    alasql.promise(sql, bind)
-                        .then((res) => {
-                            msg.payload = res;
-                            node.send(msg);
-                        }).catch((err) => {
-                        node.error(err, msg);
-                    });
-                }
-            }
-        });
-        this.on('close', () => {
-            node.status({});
-        });
-    }
-
-    RED.nodes.registerType("alafile in", AlaFileNode);
+	RED.nodes.registerType('alafile in', AlaFileNode);
 };
